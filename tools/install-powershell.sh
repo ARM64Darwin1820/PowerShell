@@ -68,6 +68,11 @@ install(){
         DistroBasedOn=osx
         # readlink doesn't work the same on macOS
         SCRIPTFOLDER=$(dirname "$0")
+        if [${MACH} =~ ""iPhone.*]; then
+            OS=ios
+            DistroBasedOn=osx
+        fi
+        
     else
         SCRIPTFOLDER=$(dirname "$(readlink -f "$0")")
         OS=$(uname)
@@ -127,7 +132,7 @@ install(){
     echo "  OSSTR: $OSSTR"
 
 
-    if [ "$DistroBasedOn" == "redhat" ] || [ "$DistroBasedOn" == "debian" ] || [ "$DistroBasedOn" == "osx" ] || [ "$DistroBasedOn" == "suse" ] || [ "$DistroBasedOn" == "amazonlinux" ]; then
+    if [ "$DistroBasedOn" == "redhat" ] || [ "$DistroBasedOn" == "debian" ] || [ "$DistroBasedOn" == "osx" ] || [ "$DistroBasedOn" == "ios" ] || [ "$DistroBasedOn" == "suse" ] || [ "$DistroBasedOn" == "amazonlinux" ]; then
         echo "Configuring PowerShell Core Environment for: $DistroBasedOn $DIST $REV"
         if [ -f "$SCRIPTFOLDER/installpsh-$DistroBasedOn.sh" ]; then
             #Script files were copied local - use them
