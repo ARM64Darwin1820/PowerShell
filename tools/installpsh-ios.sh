@@ -19,7 +19,7 @@
 #gitrepo paths are overrideable to run from your own fork or branch for testing or private distribution
 
 
-VERSION="1.1.2"
+VERSION="0.1" # script based on Version 1.1.2
 gitreposubpath="PowerShell/PowerShell/master"
 gitreposcriptroot="https://raw.githubusercontent.com/$gitreposubpath/tools"
 thisinstallerdistro=ios
@@ -44,7 +44,7 @@ lowercase(){
 }
 
 OS=$(lowercase "$(uname)")
-SYS=$(lowercase "$(uname -m)")
+MACH=$(lowercase "$(uname -m)")
 if [ "${OS}" == "windowsnt" ]; then
     OS=windows
     DistroBasedOn=windows
@@ -52,9 +52,10 @@ elif [ "${OS}" == "darwin" ]; then
     OS=osx
     DistroBasedOn=osx
     
-    if [ ${SYS} =~ "iPhone.*" ]; then
-    OS=iOS
-    DistroBasedOn=osx
+    if [ ${MACH} =~ "iPhone.*" ]; then
+        OS=ios
+        DistroBasedOn=osx
+    fi
 else
     OS=$(uname)
     if [ "${OS}" == "SunOS" ] ; then
@@ -97,87 +98,69 @@ fi
 
 echo "*** Installing PowerShell for $DistroBasedOn..."
 
+#Check for sudo if not root
+if [[ "${CI}" == "true" ]]; then
+    echo "Running on CI (as determined by env var CI set to true), skipping SUDO check."
+    set -- "$@" '-skip-sudo-check'
+fi
+
+SUDO=''
+if (( $EUID != 0 )); then
+    #Check that sudo is available
+    if [[ ("'$*'" =~ skip-sudo-check) && ("$(whereis sudo)" == *'/'* && "$(sudo -nv 2>&1)" != 'Sorry, user'*) ]]; then
+        SUDO='sudo'
+    else
+        echo "ERROR: You must either be root or be able to use sudo" >&2
+        #exit 5
+    fi
+fi
+
+#Collect any variation details if required for this iOS version
+. /etc/lsb-release
+DISTRIB_ID=`lowercase $DISTRIB_ID`
+#END Collect any variation details if required for this iOS version
+
+#If there are known incompatible versions of this distro, put the test, message and script exit here:
+
+#END Verify The Installer Choice
+
+##END Check requirements and prerequisites
+
+echo
+echo "*** Installing PowerShell Core for $DistroBasedOn..."
+if ! hash curl 2>/dev/null; then
+    echo "curl not found, installing..."
+    $SUDO apt-get install -y curl
+fi
+
+
+echo
+echo "*** Installing PowerShell Core for $DistroBasedOn..."
+if ! hash curl 2>/dev/null; then
+    echo "curl not found, installing..."
+    $SUDO apt-get install -y curl
+fi
+
 if [[ "'$*'" =~ preview ]] ; then
     echo
     echo "-preview was used, the latest preview release will be installed (side-by-side with your production release)"
     powershellpackageid=powershell-preview
 fi
 
-if ! hash brew 2>/dev/null; then
-    echo "Homebrew is not found, installing..."
-    ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)" < /dev/null 2> /dev/null
-else
-    echo "Howebrew is already installed, skipping..."
-fi
 
-if ! hash brew 2>/dev/null; then
-    echo "ERROR: brew did not install correctly, exiting..." >&2
-    exit 3
-fi
+curl https://packages.microsoft.com/config/debian/$DISTRIB_RELEASE/prod.list | $SUDO tee /etc/apt/sources.list.d/microsoft.list
 
-# Suppress output, it's very noisy on Azure DevOps
-echo "Refreshing Homebrew cache..."
-for count in {1..2}; do
-    # Try the update twice if the first time fails
-    brew update > /dev/null && break
 
-    # If the update fails again after increasing the Git buffer size, exit with error.
-    if [[ $count == 2 ]]; then
-        echo "ERROR: Refreshing Homebrew cache failed..." >&2
-        exit 2
-    fi
+# Update apt-get
+$SUDO apt-get update
+# Install PowerShell
+$SUDO apt-get install -y ${powershellpackageid}
 
-    # The update failed for the first try. An error we see a lot in our CI is "RPC failed; curl 56 SSLRead() return error -36".
-    # What 'brew update' does is to fetch the newest version of Homebrew from GitHub using git, and the error comes from git.
-    # A potential solution is to increase the Git buffer size to a larger number, say 150 mb. The default buffer size is 1 mb.
-    echo "First attempt of update failed. Increase Git buffer size and try again ..."
-    git config --global http.postBuffer 157286400
-    sleep 5
-done
-
-# Suppress output, it's very noisy on Azure DevOps
-if [[ ! -d $(brew --prefix cask) ]]; then
-    echo "Installing cask..."
-    if ! brew tap caskroom/cask >/dev/null; then
-        echo "ERROR: Cask failed to install! Cannot install powershell..." >&2
-        exit 2
-    fi
-fi
-
-if ! hash pwsh 2>/dev/null; then
-    echo "Installing PowerShell..."
-    if ! brew cask install ${powershellpackageid}; then
-        echo "ERROR: PowerShell failed to install! Cannot install powershell..." >&2
-    fi
-else
-    echo "PowerShell is already installed, skipping..."
-fi
-
-if [[ "'$*'" =~ includeide ]] ; then
-    echo "*** Installing VS Code PowerShell IDE..."
-    if [[ ! -d $(brew --prefix visual-studio-code) ]]; then
-        if ! brew cask install visual-studio-code; then
-            echo "ERROR: Visual Studio Code failed to install..." >&2
-            exit 1
-        fi
-    else
-        brew upgrade visual-studio-code
-    fi
-
-    echo "*** Installing VS Code PowerShell Extension"
-    code --install-extension ms-vscode.PowerShell
-    if [[ "'$*'" =~ -interactivetesting ]] ; then
-        echo "*** Loading test code in VS Code"
-        curl -O ./testpowershell.ps1 https://raw.githubusercontent.com/DarwinJS/CloudyWindowsAutomationCode/master/pshcoredevenv/testpowershell.ps1
-        code ./testpowershell.ps1
-    fi
-fi
-
-# shellcheck disable=SC2016
 pwsh -noprofile -c '"Congratulations! PowerShell is installed at $PSHOME.
 Run `"pwsh`" to start a PowerShell session."'
 
 success=$?
+
 
 if [[ "$success" != 0 ]]; then
     echo "ERROR: PowerShell failed to install!" >&2
