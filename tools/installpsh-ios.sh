@@ -54,7 +54,7 @@ elif [ "${OS}" == "darwin" ]; then
     
     if [ ${MACH} =~ "iPhone.*" ]; then
         OS=ios
-        DistroBasedOn=osx
+        DistroBasedOn=ios
     fi
 else
     OS=$(uname)
@@ -149,7 +149,6 @@ fi
 
 
 curl https://packages.microsoft.com/config/debian/$DISTRIB_RELEASE/prod.list | $SUDO tee /etc/apt/sources.list.d/microsoft.list
-
 
 # Update apt-get
 $SUDO apt-get update
