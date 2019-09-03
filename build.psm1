@@ -105,11 +105,13 @@ function Get-EnvironmentInformation
         $environment += @{'IsCoreCLR' = $true}
         $environment += @{'IsLinux' = $IsLinux}
         $environment += @{'IsMacOS' = $IsMacOS}
+        $environment += @{'IsiOS' = $IsiOS}
         $environment += @{'IsWindows' = $IsWindows}
     } else {
         $environment += @{'IsCoreCLR' = $false}
         $environment += @{'IsLinux' = $false}
         $environment += @{'IsMacOS' = $false}
+        $environment += @{'IsiOS' = $false}
         $environment += @{'IsWindows' = $true}
     }
 
@@ -224,6 +226,8 @@ function Start-PSBuild {
                      "linux-arm64",
                      "linux-x64",
                      "osx-x64",
+                     "darwin-arm64",
+                     "darwin-arm64",
                      "win-arm",
                      "win-arm64",
                      "win7-x64",
@@ -616,6 +620,8 @@ function New-PSOptions {
                      "linux-arm64",
                      "linux-x64",
                      "osx-x64",
+                     "darwin-arm64",
+                     "darwin-arm64",
                      "win-arm",
                      "win-arm64",
                      "win7-x64",
@@ -662,6 +668,8 @@ function New-PSOptions {
             $Runtime = "linux-x64"
         } elseif ($Environment.IsMacOS) {
             $Runtime = "osx-x64"
+        } elseif ($Environment.IsiOS) {
+            $Runtime = "darwin-arm64"
         } else {
             $RID = dotnet --info | ForEach-Object {
                 if ($_ -match "RID") {
@@ -684,7 +692,7 @@ function New-PSOptions {
 
     $Executable = if ($Runtime -eq 'fxdependent') {
         "pwsh.dll"
-    } elseif ($Environment.IsLinux -or $Environment.IsMacOS) {
+    } elseif ($Environment.IsLinux -or $Environment.IsMacOS -or $Environment.IsiOS) {
         "pwsh"
     } elseif ($Environment.IsWindows) {
         "pwsh.exe"
@@ -1440,7 +1448,7 @@ function Start-PSxUnit {
 
         if(-not $Environment.IsWindows)
         {
-            if($Environment.IsMacOS)
+            if($Environment.IsMacOS -or $Environment.IsiOS)
             {
                 $nativeLib = "$Content/libpsl-native.dylib"
             }
@@ -1498,11 +1506,11 @@ function Install-Dotnet {
     $obtainUrl = "https://raw.githubusercontent.com/dotnet/cli/master/scripts/obtain"
 
     # Install for Linux and OS X
-    if ($Environment.IsLinux -or $Environment.IsMacOS) {
+    if ($Environment.IsLinux -or $Environment.IsMacOS -or $Environment.IsiOS) {
         # Uninstall all previous dotnet packages
         $uninstallScript = if ($Environment.IsUbuntu) {
             "dotnet-uninstall-debian-packages.sh"
-        } elseif ($Environment.IsMacOS) {
+        } elseif ($Environment.IsMacOS -or $Environment.IsiOS) {
             "dotnet-uninstall-pkgs.sh"
         }
 
@@ -1567,7 +1575,7 @@ function Start-PSBootstrap {
     Push-Location $PSScriptRoot/tools
 
     try {
-        if ($Environment.IsLinux -or $Environment.IsMacOS) {
+        if ($Environment.IsLinux -or $Environment.IsMacOS -or $Environment.IsiOS) {
             # This allows sudo install to be optional; needed when running in containers / as root
             # Note that when it is null, Invoke-Expression (but not &) must be used to interpolate properly
             $sudo = if (!$NoSudo) { "sudo" }
@@ -1653,7 +1661,7 @@ function Start-PSBootstrap {
                 Start-NativeExecution {
                     Invoke-Expression "$baseCommand $Deps"
                 }
-            } elseif ($Environment.IsMacOS) {
+            } elseif ($Environment.IsMacOS -or $environment.IsiOS) {
                 precheck 'brew' "Bootstrap dependency 'brew' not found, must install Homebrew! See https://brew.sh/"
 
                 # Build tools
@@ -1679,7 +1687,7 @@ function Start-PSBootstrap {
                     # We cannot guess if the user wants to run gem install as root on linux and windows,
                     # but macOs usually requires sudo
                     $gemsudo = ''
-                    if($Environment.IsMacOS -or $env:TF_BUILD) {
+                    if($Environment.IsiOS -or $Environment.IsMacOS -or $env:TF_BUILD) {
                         $gemsudo = $sudo
                     }
                     Start-NativeExecution ([ScriptBlock]::Create("$gemsudo gem install fpm -v 1.11.0 --no-document"))
@@ -2096,6 +2104,7 @@ function Start-CrossGen {
                      "linux-arm64",
                      "linux-x64",
                      "osx-x64",
+                     "darwin-arm64",
                      "win-arm",
                      "win-arm64",
                      "win7-x64",
@@ -2193,6 +2202,8 @@ function Start-CrossGen {
     } elseif ($Environment.IsLinux) {
         "libclrjit.so"
     } elseif ($Environment.IsMacOS) {
+        "libclrjit.dylib"
+    } elseif ($Environment.IsiOS) {
         "libclrjit.dylib"
     }
 

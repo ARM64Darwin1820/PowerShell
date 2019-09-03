@@ -36,6 +36,17 @@
             }
         }
     },
+	"ios": {
+        "options": {
+            "shell": {
+                "executable": "/usr/local/bin/pwsh",
+                "args": [
+                    "-NoProfile",
+                    "-Command"
+                ]
+            }
+        }
+    },
 
     "tasks": [
         {
